@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#Varaible
+#Variable
 readonly SCRIPT=$(realpath -s $0)
 readonly SCRIPT_NAME=${0/%.*/}
 readonly SCRIPT_HOME=${SCRIPT%/*}
@@ -8,27 +8,29 @@ readonly SCRIPT_CONF=${SCRIPT_HOME}/${SCRIPT_NAME}.conf
 readonly SCRIPT_VENV=${SCRIPT_HOME}/.venv/
 
 
-readonly REQUIRMENT_LIST=${SCRIPT_HOME}/list/
-readonly REQUIRMENT_FILE=${REQUIRMENT_LIST%/}/*.list 
-readonly REQUIRMENT_DATA=${SCRIPT_HOME}/data/
+readonly REQUIREMENT_LIST=${SCRIPT_HOME}/list/
+readonly REQUIREMENT_FILE=${REQUIREMENT_LIST%/}/*.list 
+readonly REQUIREMENT_DATA=${SCRIPT_HOME}/data/
 
 
 readonly BIN_VENV_PIP=${SCRIPT_VENV%/}/bin/pip
 readonly BIN_VENV_ACT=${SCRIPT_VENV%/}/bin/activate
-
+readonly BIN_PYTHON3=/usr/bin/python3
 readonly BIN_LS=/usr/bin/ls
 
 #Message
 readonly RED="\e[1;91m"
 readonly BLUE="\e[1;34m"
 readonly GREEN="\e[1;92m"
-readonly YELLOW="\e[30;103m"
+readonly YELLOW="\e[0;33m"
 readonly RESET="\e[0m"
 
 readonly INFO="[${BLUE}INFO${RESET}]"
 readonly OK="[${GREEN}OK${RESET}]"
 readonly KO="[${RED}KO${RESET}]"
 readonly DEBUG="[${YELLOW}DEBUG${RESET}]"
+
+source $SCRIPT_CONF
 
 #Function
 
@@ -46,7 +48,7 @@ _say () {
  
 _mk_project_repository () {
     local project_name=${1}
-    export dest_dir_project=${REQUIRMENT_DATA%/}/$project_name/ 
+    export dest_dir_project=${REQUIREMENT_DATA%/}/$project_name/ 
 
     if [ -d $dest_dir_project ]
     then
@@ -63,7 +65,8 @@ _dl_library () {
     local destination=${2}
 
     _say o "Téléchargement de la librairie: [${RED}${library}${RESET}]"
-    echo '${BIN_VENV_PIP} download ${library} --dest ${destination}'
+    #echo '${BIN_VENV_PIP} download ${library} --dest ${destination}'
+    ${BIN_VENV_PIP} download ${library} --dest ${destination}
 }
 
 _clear_dest () {
@@ -73,10 +76,10 @@ _clear_dest () {
         read -p "Voulez-vous supprimer les anciennes librairies du projet ${project_name} (défaut: non) ? (oO/nN): " -t 30 choix  
         [ -z ${choix} ] && choix=n
         case $choix in
-            o|O) _say i "Suppression des anciennes librairies du projet" ${project_name}
-                 rm ${REQUIRMENT_DATA%/}/${project_name}/*.whl; _check_content ${REQUIRMENT_DATA%/}/${project_name}; return 0;;
+            o|O) _say i "Suppression des anciennes librairies du projet." ${project_name}
+                 rm ${REQUIREMENT_DATA%/}/${project_name}/*.whl; _check_content ${REQUIREMENT_DATA%/}/${project_name}; return 0;;
                  
-            n|N) _say k "Le projet existe déjà dans $0"; exit 1;;
+            n|N) _say k "Le projet existe déjà dans ${REQUIREMENT_DATA%/}/${project_name}."; exit 1;;
               *) _say k "Choix invalide"; exit 1;;
         esac 
     done
@@ -99,14 +102,62 @@ _check_content () {
     fi
 }
 
+_check_dependencies () {
+    
+    local dependencie
+    
+    for dependencie in $@
+    do
+        _say d "Vérification de la présence du package $dependencie prérequis de l'outil"
+        if ! sudo apt list --installed 2> /dev/null | grep "$dependencie\/" 
+        then
+            _say d "Le package $dependencie n'est pas installer et est un prérequis de l'outil"
+            _say i "Installation de $dependencie"
+            sudo apt install $dependencie -y
+            if [ "$?" -ne "0" ]; then _say k "Installation echoué pour le package $dependencie"; exit 1; fi
+        else
+            _say o "Le package $dependencie est déjà installé."
+        fi
+    done
+}
+
+_check_virtualenv () {
+
+    if [ ! -d ${SCRIPT_VENV} ]
+    then
+        _say d "Aucun environnement virtuel présent pour l'outil"
+        _say i "Création d'un environnement virtuel pour l'outil"
+        $BIN_PYTHON3 -m venv ${SCRIPT_VENV}
+    else
+        _say i "Un environnement virtuel est configuré dans ${SCRIPT_VENV}"
+    fi
+
+    if [[ -e $BIN_VENV_ACT && -e $BIN_VENV_PIP ]]
+    then
+        _say i "Les outils python3 de l'environnement virtuel sont présent"
+    else
+        _say k "Les outils python3 de l'environnement virtuel ne sont pas présent"
+        _say d "Supprimer l'environnement virtuel (rm -rf ${SCRIPT_VENV}) puis relancer $0"
+        exit 1
+    fi
+
+    
+}
+
+
+#Check
+_check_dependencies "python3" "python3-pip" "python3-venv"
+_check_virtualenv
+
+
 #Main
 _say i "Activation de l'environnement virtuel" 
 source ${BIN_VENV_ACT}
 
 _say i "Purge du cache de python"
-$BIN_VENV_PIP cache purge
+${BIN_VENV_PIP} cache purge
 
-for project in $(ls $REQUIRMENT_LIST)
+for project in $(ls $REQUIREMENT_LIST)
 do  
     
     _mk_project_repository ${project/%.*/}
