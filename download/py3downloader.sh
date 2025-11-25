@@ -9,14 +9,16 @@ readonly SCRIPT_VENV=${SCRIPT_HOME}/.venv/
 
 
 readonly REQUIREMENT_LIST=${SCRIPT_HOME}/list/
-readonly REQUIREMENT_FILE=${REQUIREMENT_LIST%/}/*.list 
+readonly REQUIREMENT_FILE=${REQUIREMENT_LIST%/}/*.list
 readonly REQUIREMENT_DATA=${SCRIPT_HOME}/data/
 
+readonly URL_TEST="https://www.debian-fr.org/"
 
 readonly BIN_VENV_PIP=${SCRIPT_VENV%/}/bin/pip
 readonly BIN_VENV_ACT=${SCRIPT_VENV%/}/bin/activate
 readonly BIN_PYTHON3=/usr/bin/python3
 readonly BIN_LS=/usr/bin/ls
+readonly BIN_CURL=/usr/bin/curl
 
 #Message
 readonly RED="\e[1;91m"
@@ -102,19 +104,19 @@ _check_content () {
     fi
 }
 
-_check_dependencies () {
+_check_apt_dependencies () {
     
     local dependencie
     
-    for dependencie in $@
+    for dependencie in "$@"
     do
         _say d "Vérification de la présence du package $dependencie prérequis de l'outil"
         if ! sudo apt list --installed 2> /dev/null | grep "$dependencie\/" 
         then
             _say d "Le package $dependencie n'est pas installer et est un prérequis de l'outil"
             _say i "Installation de $dependencie"
-            sudo apt install $dependencie -y
-            if [ "$?" -ne "0" ]; then _say k "Installation echoué pour le package $dependencie"; exit 1; fi
+            if ! sudo apt install $dependencie -y  ; then _say k "Installation echoué pour le package $dependencie"; exit 1; fi
+            #if [ "$?" -ne "0" ]; then _say k "Installation echoué pour le package $dependencie"; exit 1; fi
         else
             _say o "Le package $dependencie est déjà installé."
         fi
@@ -140,13 +142,20 @@ _check_virtualenv () {
         _say d "Supprimer l'environnement virtuel (rm -rf ${SCRIPT_VENV}) puis relancer $0"
         exit 1
     fi
-
-    
 }
 
+_check_internet_conn () {
+	
+	if [[ $(${BIN_CURL} -s -o /dev/null -w "%{http_code}" ${URL_TEST}) -ne 200 ]]
+	then
+		_say k "Aucun connexion à internet"
+		exit 1
+	fi
+}
 
 #Check
-_check_dependencies "python3" "python3-pip" "python3-venv"
+_check_internet_conn
+_check_apt_dependencies "python3" "python3-pip" "python3-venv"
 _check_virtualenv
 
 
@@ -157,16 +166,16 @@ source ${BIN_VENV_ACT}
 _say i "Purge du cache de python"
 ${BIN_VENV_PIP} cache purge
 
-for project in $(ls $REQUIREMENT_LIST)
+for project in ${REQUIREMENT_FILE}
 do  
+    project_file=$(basename "$project")
+    _mk_project_repository ${project_file%.*}
     
-    _mk_project_repository ${project/%.*/}
-    
-    _say info "Téléchargement de la liste de librairie du projet" ${projet/%.*/}
+    _say info "Téléchargement de la liste de librairie du projet ${project_file%.*}"
     while read lib 
     do
         _dl_library ${lib} $dest_dir_project
-    done < ${SCRIPT_HOME}/list/$project
+    done < ${SCRIPT_HOME}/list/${project_file}
 
 done
 
