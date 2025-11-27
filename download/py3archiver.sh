@@ -57,6 +57,7 @@ _mk_archive () {
     then
         _say o "Suppression de l'ancien répertoire d'archive"
         rm -rf $SCRIPT_ARCHIVE
+        sleep 1
         _say o "Création d'un répertoire d'archive vierge"
         mkdir -p $SCRIPT_ARCHIVE
     fi
@@ -78,8 +79,7 @@ _mk_archive () {
 _tar_archive () {
 
     _say i "Création de l'archive $archive_name.tar.zst"
-    tar -caf ${SCRIPT_HOME%/}/${archive_name}.tar.zst $SCRIPT_ARCHIVE
-
+    cd archive/ ; tar -cvaf ${archive_name}.tar.zst *; cd ${SCRIPT_HOME}
 }
 
 #Main

@@ -8,11 +8,13 @@ readonly SCRIPT_HOME=${SCRIPT%/*}
 readonly SCRIPT_CONF=${SCRIPT_HOME}/${SCRIPT_NAME}.conf
 readonly SCRIPT_VENV=${SCRIPT_HOME}/.venv/
 readonly SCRIPT_DROP=${SCRIPT_HOME}/drop/
+readonly SCRIPT_LIBS=${SCRIPT_HOME}/libs/
 
 readonly BIN_VENV_PIP=${SCRIPT_VENV%/}/bin/pip
 readonly BIN_VENV_ACT=${SCRIPT_VENV%/}/bin/activate
 readonly BIN_PYTHON3=/usr/bin/python3
 
+readonly BIN_TAR=/usr/bin/tar
 #Message
 readonly RED="\e[1;91m"
 readonly BLUE="\e[1;34m"
@@ -26,6 +28,8 @@ readonly KO="[${RED}KO${RESET}]"
 readonly DEBUG="[${YELLOW}DEBUG${RESET}]"
 
 source $SCRIPT_CONF
+
+
 
 #Function
 
@@ -81,4 +85,54 @@ _check_virtualenv () {
     fi
 }
 
+_check_directories () {
+
+    local directory
+ 
+    for directory in "$@"
+    do
+        if [ ! -d $directory ] 
+        then 
+            _say d "Création du repertoire ${directory}"
+            mkdir -p ${directory}
+        else
+            _say d "Le répertoire $directory existe"
+        fi
+    done
+
+
+}
+
+_untar_archive () {
+
+    for archive in ${SCRIPT_DROP%/}/*.tar.zst
+    do
+        _say i "Extraction de l'archive $archive dans $SCRIPT_LIBS"
+        $BIN_TAR -xvaf ${archive} -C ${SCRIPT_LIBS}
+    done
+
+}
+
+_clear_dest () {
+    local target=${1}
+    while true
+    do
+        read -p "Voulez-vous effacer le contenu de ${target} (défaut: non) ? (oO/nN): " -t 30 choix  
+        [ -z ${choix} ] && choix=n
+        case $choix in
+            o|O) _say i "Nettoyage de ${target}"
+                 echo "rm ${SCRIPT_HOME%/}/${target}/*"; return 0;;
+                 
+            n|N) _say k "Annulation du nettoyage de ${target}"; exit 1;;
+              *) _say k "Choix invalide"; exit 1;;
+        esac 
+    done
+}
+
 #Main
+
+_check_directories "drop" "libs"
+
+_clear_dest "libs"
+
+_untar_archive 
