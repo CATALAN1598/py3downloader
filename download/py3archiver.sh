@@ -11,6 +11,9 @@ readonly SCRIPT_ARCHIVE=${SCRIPT_HOME}/archive/
 
 readonly PROJECT_EXPORT="virtualys libaly"
 
+archive_name=""
+
+
 #Message
 readonly RED="\e[1;91m"
 readonly BLUE="\e[1;34m"
@@ -71,7 +74,7 @@ _mk_archive () {
     for project in $PROJECT_EXPORT
     do
         _say o "Copie des sources du projet $project"
-        cp -v ${SCRIPT_SOURCE%/}/${project}/*.whl ${SCRIPT_ARCHIVE}
+        cp ${SCRIPT_SOURCE%/}/${project}/*.whl ${SCRIPT_ARCHIVE}
     done
 
 }
@@ -79,7 +82,7 @@ _mk_archive () {
 _tar_archive () {
 
     _say i "Création de l'archive $archive_name.tar.zst"
-    cd archive/ ; tar -cvaf ${archive_name}.tar.zst *; cd ${SCRIPT_HOME}
+    cd ${SCRIPT_ARCHIVE} ; tar -cvaf ${SCRIPT_HOME}/${archive_name}.tar.zst *; cd ${SCRIPT_HOME}
 }
 
 #Main
@@ -88,11 +91,11 @@ _check_source $SCRIPT_SOURCE
 
 _say i "Création de l'archive à exporter"
 
-_mk_archive 
+_mk_archive $archive_name
 
 _tar_archive
 
-
+_say i "Script terminé"
 
 
 
