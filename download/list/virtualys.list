@@ -6,3 +6,5 @@ idna==3.10
 packaging==25.0
 requests==2.32.4
 urllib3==2.5.0
+lib2==version
+lib3==version
