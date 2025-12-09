@@ -7,18 +7,22 @@ readonly SCRIPT_HOME=${SCRIPT%/*}
 readonly SCRIPT_CONF=${SCRIPT_HOME}/${SCRIPT_NAME}.conf
 readonly SCRIPT_VENV=${SCRIPT_HOME}/.venv/
 
+readonly APT_CACHE="/var/cache/apt/"
 
 readonly REQUIREMENT_LIST=${SCRIPT_HOME}/list/
 readonly REQUIREMENT_FILE=${REQUIREMENT_LIST%/}/*.list
 readonly REQUIREMENT_DATA=${SCRIPT_HOME}/data/
 
+readonly PEER_PACKAGE=${SCRIPT_HOME}/.peer_package/
+
+
 readonly URL_TEST="https://www.debian-fr.org/"
 
 readonly BIN_VENV_PIP=${SCRIPT_VENV%/}/bin/pip
 readonly BIN_VENV_ACT=${SCRIPT_VENV%/}/bin/activate
-readonly BIN_PYTHON3=/usr/bin/python3
-readonly BIN_LS=/usr/bin/ls
-readonly BIN_CURL=/usr/bin/curl
+readonly BIN_PYTHON3=$(command -v python3)
+readonly BIN_LS=$(command -v ls)
+readonly BIN_CURL=$(command -v curl)
 
 #Message
 readonly RED="\e[1;91m"
@@ -33,6 +37,13 @@ readonly KO="[${RED}KO${RESET}]"
 readonly DEBUG="[${YELLOW}DEBUG${RESET}]"
 
 source $SCRIPT_CONF
+
+
+#Argument
+
+always_yes=0 
+if [ "$1" == "--yes" ]; then always_yes=1 ; fi
+
 
 #Function
 
@@ -68,21 +79,31 @@ _dl_library () {
 
     _say o "Téléchargement de la librairie: [${RED}${library}${RESET}]"
     #echo '${BIN_VENV_PIP} download ${library} --dest ${destination}'
-    ${BIN_VENV_PIP} download ${library} --dest ${destination}
+    if ! ${BIN_VENV_PIP} download ${library} --dest ${destination}
+    then
+        _say k "Impossible de télécharger la librairie ${library}"
+    fi
 }
 
 _clear_dest () {
     local project_name=${1}
+
     while true
     do
-        read -p "Voulez-vous supprimer les anciennes librairies du projet ${project_name} (défaut: non) ? (oO/nN): " -t 30 choix  
-        [ -z ${choix} ] && choix=n
+        if [[ "$always_yes" -eq 0 ]]
+        then
+            read -p "Voulez-vous supprimer les anciennes librairies du projet ${project_name} (défaut: non) ? (oO/nN): " -t 20 choix  
+            [ -z ${choix} ] && choix=n
+        else
+            choix=o
+        fi
+
         case $choix in
             o|O) _say i "Suppression des anciennes librairies du projet." ${project_name}
-                 rm ${REQUIREMENT_DATA%/}/${project_name}/*.whl; _check_content ${REQUIREMENT_DATA%/}/${project_name}; return 0;;
+                 rm ${REQUIREMENT_DATA%/}/${project_name}/*; _check_content ${REQUIREMENT_DATA%/}/${project_name}; return 0;; #/!\ ATTENTION !!!!
                  
-            n|N) _say k "Le projet existe déjà dans ${REQUIREMENT_DATA%/}/${project_name}."; exit 1;;
-              *) _say k "Choix invalide"; exit 1;;
+            n|N) _say k "Le projet existe déjà dans ${REQUIREMENT_DATA%/}/${project_name}."; return 1;;
+            *) _say k "Choix invalide"; exit 1;;
         esac 
     done
 }
@@ -153,10 +174,53 @@ _check_internet_conn () {
 	fi
 }
 
+
+_need_peer_tool () {
+
+    local package=${1}
+    local type=${2}
+
+    case $type in
+        python)
+            _say i "Téléchargement de la librairie python3 $package"
+            $BIN_VENV_PIP download $package --dest $PEER_PACKAGE/python/
+        ;;
+        apt)
+            _say i "Téléchargement du paquet $package"
+            sudo apt install --download-only --reinstall $package 
+            #Attention téléchargement de paquet virtuel impossible avec cette technique. Entrer le nom réelle du paquet, non celui du pointeur apt (exemple: python3 n'est pas un paquet mais un pointeur)
+            cp -v $APT_CACHE/archives/$package*.deb ${PEER_PACKAGE}/apt/
+        ;;
+    esac
+}
+
+_check_directories () {
+
+    local directory
+ 
+    for directory in "$@"
+    do
+        if [ ! -d $directory ] 
+        then 
+            _say d "Création du repertoire ${directory}"
+            mkdir -p ${directory}
+        else
+            _say o "Le répertoire $directory existe"
+        fi
+    done
+
+
+}
+
 #Check
 _check_internet_conn
 _check_apt_dependencies "python3" "python3-pip" "python3-venv"
 _check_virtualenv
+_check_directories  "data" "list" "archive" 
+
+_check_directories "${PEER_PACKAGE}" "${PEER_PACKAGE}/python/" "${PEER_PACKAGE}/apt/"
+for apt_package in "python3.11" "python3-pip" "python3.11-venv" ; do _need_peer_tool $apt_package apt ; done 
+for pip_package in "twine" ; do _need_peer_tool $pip_package python ; done
 
 
 #Main
@@ -170,13 +234,17 @@ for project in ${REQUIREMENT_FILE}
 do  
     project_file=$(basename "$project")
     _mk_project_repository ${project_file%.*}
-    
-    _say info "Téléchargement de la liste de librairie du projet ${project_file%.*}"
-    while read lib 
-    do
-        _dl_library ${lib} $dest_dir_project
-    done < ${SCRIPT_HOME}/list/${project_file}
 
+    if [[ $(find -H ${REQUIREMENT_DATA%/}/${project_file%.*} -maxdepth 0 -type d -empty) ]]
+    then
+        _say info "Téléchargement de la liste de librairie du projet ${project_file%.*}"
+        while read lib 
+        do
+            _dl_library ${lib} $dest_dir_project
+        done < ${SCRIPT_HOME}/list/${project_file}              
+    else
+        continue      
+    fi
 done
 
 _say i "Désactivation de l'environnement virtuel" 

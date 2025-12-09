@@ -2,7 +2,7 @@
 
 ## Description
 
-Py3Downloader est un outil d'administration permettant de **Télécharger**, **Archiver** puis d'**Importer** des librairies python pour des environnement Air-Gapped.
+Py3Downloader est un outil d'administration permettant de **Télécharger**, **Archiver** puis d'**Importer** des librairies python pour des environnements Air-Gapped.
 
 Ce projet regroupe 3 outils:
 
@@ -19,5 +19,5 @@ Ce pipeline de traitement nécessite 2 machines minimum:
 
 Chaque outil possède son propre README.md afin de présenté au mieu l'utilisation des différents outils.
 
-Tous les outils sont écrits en **BASH** et son GNU/Linux exportable.
+Tous les outils sont écrits en **BASH** et exportable vers des systèmes type Debian/Ubuntu utilisant le gestionnaire de package **APT**.
  
