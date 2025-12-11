@@ -1,3 +1,5 @@
 .venv
 *.tar*
 *.whl
+*.deb
+*.udeb
