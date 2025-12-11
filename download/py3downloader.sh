@@ -182,7 +182,7 @@ _need_peer_tool () {
         python)
             _say i "Téléchargement de la librairie python3 $package"
             $BIN_VENV_PIP download $package --dest $PEER_PACKAGE/python/
-            echo "" > $PEER_PACKAGE/python/list
+            cat /dev/null > $PEER_PACKAGE/python/list
             echo $package >> $PEER_PACKAGE/python/list
         ;;
         apt)
