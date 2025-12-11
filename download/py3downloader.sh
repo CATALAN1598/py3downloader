@@ -21,7 +21,6 @@ readonly URL_TEST="https://www.debian-fr.org/"
 readonly BIN_VENV_PIP=${SCRIPT_VENV%/}/bin/pip
 readonly BIN_VENV_ACT=${SCRIPT_VENV%/}/bin/activate
 readonly BIN_PYTHON3=$(command -v python3)
-readonly BIN_LS=$(command -v ls)
 readonly BIN_CURL=$(command -v curl)
 
 #Message
@@ -78,7 +77,6 @@ _dl_library () {
     local destination=${2}
 
     _say o "Téléchargement de la librairie: [${RED}${library}${RESET}]"
-    #echo '${BIN_VENV_PIP} download ${library} --dest ${destination}'
     if ! ${BIN_VENV_PIP} download ${library} --dest ${destination}
     then
         _say k "Impossible de télécharger la librairie ${library}"
@@ -100,10 +98,11 @@ _clear_dest () {
 
         case $choix in
             o|O) _say i "Suppression des anciennes librairies du projet." ${project_name}
-                 rm ${REQUIREMENT_DATA%/}/${project_name}/*; _check_content ${REQUIREMENT_DATA%/}/${project_name}; return 0;; #/!\ ATTENTION !!!!
-                 
+                 find "${REQUIREMENT_DATA%/}/${project_name}/" \( -name "*.whl" -o -name "*.tar.gz" \) -type f -delete
+                 _check_content ${REQUIREMENT_DATA%/}/${project_name}
+                 return 0;;
             n|N) _say k "Le projet existe déjà dans ${REQUIREMENT_DATA%/}/${project_name}."; return 1;;
-            *) _say k "Choix invalide"; exit 1;;
+              *) _say k "Choix invalide"; exit 1;;
         esac 
     done
 }
@@ -111,14 +110,14 @@ _clear_dest () {
 _check_content () {
     local source=${1}
     
-    nb_file=$( $BIN_LS -l $source | head -n1 | cut -d " " -f2 )
+    nb_file=$(ls -l $source | head -n1 | cut -d " " -f2)
 
     if [ ${nb_file} == "0" ]
     then
         return 0
     else
         _say k "Le répertoire ${source}/ n'est pas vide\nListe des fichiers restants: "
-        $BIN_LS -l ${source}
+        ls -l ${source}
         echo ""
         _say k "Supprimer les fichiers manuellement avant de relancer $0"
         exit 1
@@ -137,7 +136,6 @@ _check_apt_dependencies () {
             _say d "Le package $dependencie n'est pas installer et est un prérequis de l'outil"
             _say i "Installation de $dependencie"
             if ! sudo apt install $dependencie -y  ; then _say k "Installation echoué pour le package $dependencie"; exit 1; fi
-            #if [ "$?" -ne "0" ]; then _say k "Installation echoué pour le package $dependencie"; exit 1; fi
         else
             _say o "Le package $dependencie est déjà installé."
         fi
@@ -184,11 +182,15 @@ _need_peer_tool () {
         python)
             _say i "Téléchargement de la librairie python3 $package"
             $BIN_VENV_PIP download $package --dest $PEER_PACKAGE/python/
+            echo "" > $PEER_PACKAGE/python/list
+            echo $package >> $PEER_PACKAGE/python/list
         ;;
         apt)
+            sudo apt clean
             _say i "Téléchargement du paquet $package"
             sudo apt install --download-only --reinstall $package 
-            #Attention téléchargement de paquet virtuel impossible avec cette technique. Entrer le nom réelle du paquet, non celui du pointeur apt (exemple: python3 n'est pas un paquet mais un pointeur)
+            # Attention téléchargement de paquet virtuel impossible avec cette technique. Entrer le nom réel  du paquet, 
+            # non celui du pointeur apt (exemple: python3 n'est pas un paquet mais un pointeur)
             cp -v $APT_CACHE/archives/$package*.deb ${PEER_PACKAGE}/apt/
         ;;
     esac
@@ -208,13 +210,11 @@ _check_directories () {
             _say o "Le répertoire $directory existe"
         fi
     done
-
-
 }
 
 #Check
 _check_internet_conn
-_check_apt_dependencies "python3" "python3-pip" "python3-venv"
+_check_apt_dependencies "python3" "python3-pip" "python3-venv" "curl" "findutils" "tar"
 _check_virtualenv
 _check_directories  "data" "list" "archive" 
 

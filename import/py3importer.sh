@@ -14,25 +14,33 @@ readonly BIN_VENV_PIP=${SCRIPT_VENV%/}/bin/pip
 readonly BIN_VENV_ACT=${SCRIPT_VENV%/}/bin/activate
 readonly BIN_VENV_TWINE=${SCRIPT_VENV%/}/bin/twine
 
-readonly BIN_PYTHON3=/usr/bin/python3
-readonly BIN_TAR=/usr/bin/tar
-readonly BIN_CURL=/usr/bin/curl
+readonly BIN_PYTHON3=$(command -v python3)
+readonly BIN_TAR=$(command -v tar)
+readonly BIN_CURL=$(command -v curl)
 
+readonly PEER_PACKAGE=${SCRIPT_HOME}/.peer_package/
 
 #Message
+
+DATE=$(date +"%Y-%m-%d %H:%M")
+
 readonly RED="\e[1;91m"
 readonly BLUE="\e[1;34m"
 readonly GREEN="\e[1;92m"
 readonly YELLOW="\e[0;33m"
 readonly RESET="\e[0m"
 
-readonly INFO="[${BLUE}INFO${RESET}]"
-readonly OK="[${GREEN}OK${RESET}]"
-readonly KO="[${RED}KO${RESET}]"
-readonly DEBUG="[${YELLOW}DEBUG${RESET}]"
+readonly INFO="[${BLUE}$DATE${RESET}] [${BLUE}INFO${RESET}]>"
+readonly OK="[${BLUE}$DATE${RESET}] [${GREEN}OK${RESET}]>"
+readonly KO="[${BLUE}$DATE${RESET}] [${RED}KO${RESET}]>"
+readonly DEBUG="[${BLUE}$DATE${RESET}] [${YELLOW}DEBUG${RESET}]>"
 
 source $SCRIPT_CONF
 
+#Argument
+
+always_yes=0 
+if [ "$1" == "--yes" ]; then always_yes=1 ; fi
 
 
 #Function
@@ -55,13 +63,12 @@ _check_apt_dependencies () {
 
     for dependencie in "$@"
     do
-        _say d "Vérification de la présence du package $dependencie prérequis de l'outil"
+        _say i "Vérification de la présence du package $dependencie prérequis de l'outil $0"
         if ! sudo apt list --installed 2> /dev/null | grep "$dependencie\/"
         then
-            _say d "Le package $dependencie n'est pas installer et est un prérequis de l'outil"
+            _say d "Le package $dependencie n'est pas installé et est un prérequis de l'outil $0"
             _say i "Installation de $dependencie"
-            if ! sudo apt install $dependencie -y  ; then _say k "Installation echoué pour le package $dependencie"; exit 1; fi
-            #if [ "$?" -ne "0" ]; then _say k "Installation echoué pour le package $dependencie"; exit 1; fi
+            if ! sudo apt install $dependencie -y  ; then _say k "Installation echouée pour le package $dependencie"; exit 1; fi
         else
             _say o "Le package $dependencie est déjà installé."
         fi
@@ -75,10 +82,10 @@ _check_python_dependencies () {
     for py3dep in "$@"
     do
         if $BIN_VENV_PIP show ${py3dep} >/dev/null 2>&1; then
-            _say i "${py3dep} est installé"
+            _say o "${py3dep} est installé via PIP"
         else
-            _say i "${py3dep} n'est  pas installé"
-            _say i "Installation de ${py3dep}"
+            _say k "${py3dep} n'est pas installé"
+            _say d "Installation de ${py3dep}"
             if $BIN_VENV_PIP install ${py3dep} ; then _say i "Installation de ${py3dep} réussi"; else _say k "Erreur lors du téléchargement de ${py3dep}" ; exit 1 ; fi           
         fi
     done
@@ -89,19 +96,19 @@ _check_virtualenv () {
 
     if [ ! -d ${SCRIPT_VENV} ]
     then
-        _say d "Aucun environnement virtuel présent pour l'outil"
-        _say i "Création d'un environnement virtuel pour l'outil"
+        _say k "Aucun environnement virtuel présent pour l'outil"
+        _say d "Création d'un environnement virtuel pour l'outil"
         $BIN_PYTHON3 -m venv ${SCRIPT_VENV}
     else
-        _say i "Un environnement virtuel est configuré dans ${SCRIPT_VENV}"
+        _say o "Un environnement virtuel est configuré dans [${GREEN}${SCRIPT_VENV}${RESET}]"
     fi
 
     if [[ -e $BIN_VENV_ACT && -e $BIN_VENV_PIP ]]
     then
-        _say i "Les outils python3 de l'environnement virtuel sont présent"
+        _say o "Les outils python3 de l'environnement virtuel sont présent."
     else
         _say k "Les outils python3 de l'environnement virtuel ne sont pas présent"
-        _say d "Supprimer l'environnement virtuel (rm -rf ${SCRIPT_VENV}) puis relancer $0"
+        _say k "Supprimer l'environnement virtuel (rm -rf ${SCRIPT_VENV}) puis relancer $0"
         exit 1
     fi
 }
@@ -117,7 +124,7 @@ _check_directories () {
             _say d "Création du repertoire ${directory}"
             mkdir -p ${directory}
         else
-            _say i "Le répertoire $directory existe"
+            _say o "Le répertoire $directory existe"
         fi
     done
 
@@ -131,7 +138,7 @@ _check_reachable_url () {
 
     if [ $code -eq 200 ]
     then
-        _say d "L'URL $url est joignable"
+        _say o "L'URL $url est joignable"
     else
         _say k "L'URL $url n'est pas joignable"
         exit 1
@@ -149,26 +156,27 @@ _check_pylib_in_repo () {
 
     lib[name]=$(echo $library | cut -d "-" -f1 | sed "s/_/-/g")
     lib[version]=$(echo $library | cut -d "-" -f2)
-    #_say d "${lib[name]} ${lib[version]} $library"
+   
 
     code=$(curl -s -u ${SERVER_USERNAME}:${SERVER_PASSWORD} -w "%{http_code}" -o /dev/null ${repo_target%/}/${lib[name]}/${lib[version]}/$library)
-    #_say d "$library $code"
+    
     
     if [ "$code" -eq 200 ]; then return 0 ; else return 1; fi
     
-    
-    
-    #echo "curl -s -u ${SERVER_USERNAME}:${SERVER_PASSWORD} -w "%{http_code}" -o /dev/null" ${repo_target%/}/${lib[name]}/${lib[version]}/$library
-    #http://127.0.0.1:8081/repository/PyPi-local/packages/certifi/2025.11.12/certifi-2025.11.12-py3-none-any.whl
-
 }
 
 _untar_archive () {
 
-    for archive in ${SCRIPT_DROP%/}/*.tar.zst
+    local source=${1}
+    local target=${2}
+    local extention=${3}
+
+    local destination=$(realpath -s ${target})
+
+    for archive in $(find ${source} -maxdepth 1 -type f -name "*.${extention}")
     do
-        _say i "Extraction de l'archive $archive dans $SCRIPT_LIBS"
-        $BIN_TAR -xaf ${archive} -C ${SCRIPT_LIBS}
+        _say i "Extraction de l'archive $archive dans $destination"
+        $BIN_TAR -xaf ${archive} -C ${destination}
     done
 
 }
@@ -177,16 +185,23 @@ _clear_dest () {
     local target=${1}
     while true
     do
-        read -p "Voulez-vous effacer le contenu de ${target} (défaut: non) ? (oO/nN): " -t 30 choix  
-        [ -z ${choix} ] && choix=n
+        if [[ "$always_yes" -eq 0 ]]
+        then
+
+            read -p "Voulez-vous effacer le contenu de ${target} (défaut: non) ? (oO/nN): " -t 30 choix  
+            [ -z ${choix} ] && choix=n
+        else
+            choix=o
+        fi
+
         case $choix in
             o|O) if [[ $(find -H ${target} -maxdepth 0 -type d -empty) ]]
                  then
-                    _say d "Répertoire ${target} vide"
+                    _say i "Répertoire ${target} vide"
                     return 0
                 else
-                    _say i "Nettoyage de ${target}"   
-                    rm ${SCRIPT_HOME%/}/${target}/*
+                    _say d "Nettoyage de ${target}"   
+                    find ${SCRIPT_HOME%/}/${target}/ -type f -delete
                     return 0
                 fi
                 ;;
@@ -201,10 +216,9 @@ _push_to_repository () {
 
     for source in $(ls ${SCRIPT_LIBS})
     do
-        #_say d "librairie: $i"
         if _check_pylib_in_repo ${REPO_PACKAGE} $source
         then
-            _say i "La librairie [${YELLOW}${source}${RESET}] déjà existante dans ${REPO_PYPI}"
+            _say o "La librairie [${YELLOW}${source}${RESET}] déjà existante dans ${REPO_PYPI}"
             continue
         else
             _say i "Téléversement de $source dans ${REPO_URL}"
@@ -215,22 +229,47 @@ _push_to_repository () {
     
 }
 
+_install_peer_package () {
+
+    local source=${1}
+
+    _check_virtualenv
+
+    for dir in $(ls $source)
+    do 
+        case $dir in
+            apt) _say d "Installation forcé des dépendances apt de $0"
+                 sudo dpkg -i ${source}/$dir/*.deb
+            ;;
+            python) _say d "Installation forcé des dépendances python de $0"
+                    while read line
+                    do
+                        $BIN_VENV_PIP install --no-index --find=${source}/python/ $line
+                    done < ${source}/python/list
+            ;;
+        esac
+    done
+}
 
 #Main
 
-_check_apt_dependencies "python3" "python3-pip" "python3-venv"
+if [ "$1" == "--force-install" ]; then _install_peer_package ${PEER_PACKAGE}; exit 0; fi
+
+_check_apt_dependencies "python3" "python3-pip" "python3-venv" "findutils" "tar" "curl"
 
 _check_virtualenv
 
 _check_python_dependencies "twine"
 
-_check_directories "drop" "libs"
+_check_directories "drop" "libs" ".peer_package"
 
 _clear_dest "libs"
 
-_check_reachable_url ${REPO_URL} 
+_untar_archive ${SCRIPT_HOME} ${SCRIPT_HOME} tar.zst
 
-_untar_archive 
+_untar_archive ${SCRIPT_DROP} ${SCRIPT_LIBS} tar.zst
+
+_check_reachable_url ${REPO_URL} 
 
 _push_to_repository
 

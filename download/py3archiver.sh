@@ -12,7 +12,7 @@ readonly SCRIPT_ARCHIVE=${SCRIPT_HOME}/archive/
 readonly SCRIPT_PEER_PACKAGE=${SCRIPT_HOME}/.peer_package/
 
 readonly PROJECT_EXPORT="virtualys libaly"
-ARCHIVE_NAME="archive-test"
+ARCHIVE_NAME="archive-py3libs"
 ARCHIVE_EXTENTION="tar.zst"
 
 #Message
@@ -70,8 +70,6 @@ _check_directories () {
             _say o "Le répertoire $directory existe"
         fi
     done
-
-
 }
 
 _add_content_to_archive_source () {
@@ -84,8 +82,7 @@ _add_content_to_archive_source () {
     do
         _say i "Génération des librairies sources de l'archive"
         find "${source_dir}" \( -name "*.whl" -o -name "*.tar.gz" \) -type f -exec cp {} "${destination}/" \;
-    done
-   
+    done   
 }
 
 _make_archive () {
@@ -100,8 +97,10 @@ _make_archive () {
 
     if [ "$#" -ne 4 ]
     then
-        _say k "_make_archive à besion de 4 argument
-        1: option -d ou -f (directory ou file)
+        _say k "La fonction _make_archive à besoin de 4 arguments
+        1: Option: 
+            -d | --directory    : La source est un répertoire   
+            -f | --file         : La source est une liste de fichier dans un répertoire       
         2: Source de travail
         3: Nom de l'archive
         4: Extention voulu"
@@ -109,19 +108,21 @@ _make_archive () {
     fi
 
     case $option in
-        -d) _say i "Création de l'archive $archive_full_name avec pour répertoire source $source_dir" 
+        --directory|-d) 
+            _say i "Création de l'archive $archive_full_name avec pour répertoire source $source_dir" 
             tar -caf ${destination} $(basename ${source_dir})
         ;;
-        -f)
+        --file|-f)
             _say i "Création de l'archive $archive_full_name avec les fichiers de $source_dir" 
             cd ${SCRIPT_ARCHIVE} ; tar -caf ${destination} *; cd ${SCRIPT_HOME} 
         ;;
          *) _say k "Choix invalide"
             exit 1
-         ;;
-    esac
-  
+         
+        ;;
+    esac 
 }
+
 #Main
 
 _check_source "${SCRIPT_DATA}"
@@ -130,7 +131,7 @@ _check_directories ${SCRIPT_ARCHIVE}
 
 for project in $PROJECT_EXPORT; do _add_content_to_archive_source "${SCRIPT_ARCHIVE}" "${SCRIPT_DATA%/}/${project}/"; done
 
-if [ -e ${ARCHIVE_NAME:-archive}.${ARCHIVE_EXTENTION:-tar.zst} ]; then _say i "Suppression de l'archive précédente" ; rm  ${ARCHIVE_NAME:-archive}.${ARCHIVE_EXTENTION:-tar.zst}; fi
+if [ -e ${ARCHIVE_NAME:-archive}.${ARCHIVE_EXTENTION:-tar.zst} ]; then _say i "Suppression de l'archive précédente" ; find ${SCRIPT_HOME} -maxdepth 1 -type f -name "${ARCHIVE_NAME:-archive}.${ARCHIVE_EXTENTION:-tar.zst}" -delete ; fi
 
 _make_archive -f ${SCRIPT_ARCHIVE} ${ARCHIVE_NAME:-archive} ${ARCHIVE_EXTENTION:-tar.zst} 
 
